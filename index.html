@@ -20,16 +20,16 @@
   --border: #374151;
   --warn: #f59e0b;
   --err: #ef4444;
-  --ok: #10b981;
   --tw: #3b82f6;
   --jp: #10b981;
+  --gps: #38bdf8;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
        background: var(--bg); color: var(--txt); height: 100vh;
        display: flex; flex-direction: column; overflow: hidden; }
 
-/* ── Header ── */
+/* Header */
 #hdr { height: var(--hdr); background: var(--surf);
        border-bottom: 1px solid var(--border);
        display: flex; align-items: center; padding: 0 14px; gap: 12px; flex-shrink: 0; }
@@ -44,10 +44,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 .tab.on[data-p="jp-miyakojima"]{ background: var(--jp); }
 #stats { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
-/* ── Body ── */
+/* Body */
 #body { flex: 1; display: flex; overflow: hidden; }
 
-/* ── Sidebar ── */
+/* Sidebar */
 #sb { width: var(--sidebar-w); background: var(--surf);
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column; flex-shrink: 0; }
@@ -57,10 +57,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
               font-size: 13px; outline: none; }
 #srch input:focus { border-color: var(--accent); }
 #list { flex: 1; overflow-y: auto; }
-.pi { padding: 8px 12px; cursor: pointer; border-left: 3px solid transparent;
-      transition: background .1s; }
+.pi { padding: 8px 12px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
 .pi:hover { background: var(--surf2); }
 .pi.sel { background: var(--surf2); border-left-color: var(--accent); }
+.pi.triggered { background: rgba(56,189,248,.08); border-left-color: var(--gps); }
+.pi.triggered.sel { background: rgba(56,189,248,.18); }
 .pi .pt { font-size: 13px; font-weight: 500; }
 .pi .pid { font-size: 10px; font-family: monospace; color: var(--muted); margin-top: 1px; }
 .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
@@ -69,14 +70,61 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 .ibadge { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 4px; vertical-align: middle; }
 .ibadge.warn { background: var(--warn); }
 .ibadge.err  { background: var(--err); }
+.ibadge.gps  { background: var(--gps); }
 
-/* ── Map ── */
-#map { flex: 1; }
+/* Map area */
+#map-wrap { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+/* Location search overlay */
+#loc-search {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 1000; width: 340px; max-width: calc(100% - 20px);
+}
+#loc-input-wrap {
+  display: flex; gap: 0;
+  background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+#loc-input {
+  flex: 1; background: transparent; border: none; padding: 8px 12px;
+  color: var(--txt); font-size: 13px; outline: none;
+}
+#loc-input::placeholder { color: var(--muted); }
+#loc-clear {
+  background: none; border: none; color: var(--muted); padding: 0 10px;
+  cursor: pointer; font-size: 16px; display: none;
+}
+#loc-clear:hover { color: var(--txt); }
+#loc-results {
+  margin-top: 4px; background: var(--surf); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  display: none;
+}
+.loc-item {
+  padding: 9px 12px; cursor: pointer; font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.loc-item:last-child { border-bottom: none; }
+.loc-item:hover { background: var(--surf2); }
+.loc-item .loc-name { font-weight: 500; }
+.loc-item .loc-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* GPS status bar */
+#gps-bar {
+  position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+  z-index: 1000; background: var(--surf); border: 1px solid var(--gps);
+  border-radius: 20px; padding: 5px 14px; font-size: 12px; color: var(--gps);
+  box-shadow: 0 2px 8px rgba(0,0,0,.4); display: none; white-space: nowrap;
+  cursor: pointer;
+}
+#gps-bar:hover { background: var(--surf2); }
+
 #loading { position: absolute; inset: 0; display: flex; align-items: center;
            justify-content: center; font-size: 14px; color: var(--muted);
-           z-index: 9999; pointer-events: none; }
+           z-index: 500; pointer-events: none; }
 
-/* ── Detail panel ── */
+/* Detail panel */
 #dp { width: var(--detail-w); background: var(--surf);
       border-left: 1px solid var(--border);
       display: none; flex-direction: column; overflow: hidden; flex-shrink: 0; }
@@ -84,8 +132,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 #dp-hdr { padding: 10px 13px; border-bottom: 1px solid var(--border);
           display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #dp-hdr .did { font-size: 10px; font-family: monospace; color: var(--muted); word-break: break-all; }
-#close { background: none; border: none; color: var(--muted); cursor: pointer;
-         font-size: 20px; line-height: 1; flex-shrink: 0; }
+#close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; flex-shrink: 0; }
 #close:hover { color: var(--txt); }
 #dc { flex: 1; overflow-y: auto; padding: 13px; }
 #d-img { width: 100%; border-radius: 8px; margin-bottom: 12px;
@@ -104,34 +151,43 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 .btn:hover { background: var(--border); }
 .btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
-.chip { padding: 2px 8px; background: var(--surf2); border-radius: 12px;
-        font-size: 11px; color: var(--muted); }
+.chip { padding: 2px 8px; background: var(--surf2); border-radius: 12px; font-size: 11px; color: var(--muted); }
 .row3 { display: flex; gap: 14px; }
 .row3 > div { flex: 1; }
 .issue { padding: 6px 9px; border-radius: 6px; font-size: 12px; margin-bottom: 5px;
          display: flex; align-items: flex-start; gap: 5px; line-height: 1.4; }
 .issue.warn { background: rgba(245,158,11,.13); border: 1px solid rgba(245,158,11,.3); color: #fbbf24; }
 .issue.err  { background: rgba(239,68,68,.13);  border: 1px solid rgba(239,68,68,.3);  color: #f87171; }
-.issue.info { background: rgba(99,102,241,.13); border: 1px solid rgba(99,102,241,.3); color: #a5b4fc; }
-.issue .icon { flex-shrink: 0; font-style: normal; }
+.issue.gps  { background: rgba(56,189,248,.13); border: 1px solid rgba(56,189,248,.3); color: #7dd3fc; }
+.issue .icon { flex-shrink: 0; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* Leaflet popup */
-.leaflet-popup-content-wrapper { background: var(--surf); color: var(--txt); border-radius: 8px; }
+/* Leaflet overrides */
+.leaflet-popup-content-wrapper { background: var(--surf); color: var(--txt); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.5); }
 .leaflet-popup-tip { background: var(--surf); }
 .leaflet-popup-content { margin: 10px 14px; font-size: 13px; }
 .pop-title { font-weight: 600; }
 .pop-id { font-size: 10px; font-family: monospace; color: var(--muted); margin-top: 2px; }
+.pop-dist { font-size: 11px; color: var(--gps); margin-top: 4px; }
+.leaflet-control-zoom a { background: var(--surf) !important; color: var(--txt) !important; border-color: var(--border) !important; }
+
+/* GPS pulse animation */
+@keyframes pulse {
+  0%   { transform: scale(1);   opacity: 1; }
+  70%  { transform: scale(2.5); opacity: 0; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.gps-pulse { animation: pulse 1.6s infinite; }
 </style>
 </head>
 <body>
 
 <div id="hdr">
-  <h1>NearbyGuide Dataset Viewer</h1>
+  <h1>NearbyGuide Viewer</h1>
   <div class="tabs">
     <div class="tab on" data-p="all">全部</div>
     <div class="tab" data-p="tw-hsinchu">新竹市</div>
@@ -146,7 +202,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     <div id="list"></div>
   </div>
 
-  <div id="map" style="position:relative">
+  <div id="map-wrap">
+    <!-- Location search overlay -->
+    <div id="loc-search">
+      <div id="loc-input-wrap">
+        <input id="loc-input" type="text" placeholder="📍 搜尋地點以模擬 GPS 位置…">
+        <button id="loc-clear">✕</button>
+      </div>
+      <div id="loc-results"></div>
+    </div>
+
+    <!-- Current GPS status -->
+    <div id="gps-bar">📍 <span id="gps-coords"></span> &nbsp;·&nbsp; 點此清除</div>
+
+    <div id="map"></div>
     <div id="loading">⟳ 載入中…</div>
   </div>
 
@@ -196,11 +265,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 const DATA_URL =
   'https://raw.githubusercontent.com/whmou/nearby-guide-data/main/public/viewer_data.json';
 
-// Hardcoded content issues
 const KNOWN = {
-  'tw-hsinchu-zhongzheng-park': [
-    { lv: 'warn', msg: '摘要提到「18公尺觀音立像」，此特徵屬基隆中正公園，非新竹。內容可能有誤。' },
-  ],
   'tw-hsinchu-catholic-church': [
     { lv: 'warn', msg: '標題寫「聖若瑟主教座堂」，但新竹教區主教座堂實為「聖母聖心主教座堂」。' },
   ],
@@ -209,25 +274,167 @@ const KNOWN = {
 const PACK_COLOR = { 'tw-hsinchu': '#3b82f6', 'jp-miyakojima': '#10b981' };
 const PACK_CLASS = { 'tw-hsinchu': 'tw', 'jp-miyakojima': 'jp' };
 
-let pts = [], mkrs = {}, selId = null, packFilter = 'all', map;
+let pts = [], mkrs = {}, circles = {}, selId = null, packFilter = 'all', map;
+let gpsPos = null;       // { lat, lng } simulated position
+let gpsMarker = null;
+let searchTimer = null;
+
+// ── Haversine distance (metres) ──
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (lat2 - lat1) * r, dLng = (lng2 - lng1) * r;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
 function issues(pt) {
   const list = [...(KNOWN[pt.id] || [])];
   if (!pt.googleMapsUrl) list.push({ lv: 'err', msg: '缺少 Google Maps URL' });
   if (pt.mediaCount === 0) list.push({ lv: 'warn', msg: '無附圖' });
+  if (gpsPos && pt.lat != null) {
+    const dist = haversine(gpsPos.lat, gpsPos.lng, pt.lat, pt.lng);
+    const r = pt.triggerRadiusM || 150;
+    if (dist <= r) list.push({ lv: 'gps', msg: `📍 在觸發範圍內（距離 ${Math.round(dist)} m，半徑 ${r} m）` });
+  }
   return list;
 }
 
-function markerIcon(packId, hasIssue) {
-  const c = PACK_COLOR[packId] || '#888';
-  const ring = hasIssue ? '#f59e0b' : c;
-  const sw = hasIssue ? 3 : 1.5;
+function isTriggered(pt) {
+  if (!gpsPos || pt.lat == null) return false;
+  return haversine(gpsPos.lat, gpsPos.lng, pt.lat, pt.lng) <= (pt.triggerRadiusM || 150);
+}
+
+function markerIcon(packId, hasIssue, triggered) {
+  const c = triggered ? '#38bdf8' : (PACK_COLOR[packId] || '#888');
+  const ring = triggered ? '#38bdf8' : hasIssue ? '#f59e0b' : c;
+  const sw = (triggered || hasIssue) ? 3 : 1.5;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
     <circle cx="12" cy="12" r="8" fill="${c}" stroke="${ring}" stroke-width="${sw}" opacity=".92"/>
   </svg>`;
   return L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
 }
 
+function gpsMarkerIcon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+    <circle cx="16" cy="16" r="14" fill="rgba(56,189,248,.18)" stroke="#38bdf8" stroke-width="2" class="gps-pulse"/>
+    <circle cx="16" cy="16" r="6" fill="#38bdf8" stroke="#fff" stroke-width="2.5"/>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [32, 32], iconAnchor: [16, 16] });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Refresh all marker icons after GPS change ──
+function refreshMarkers() {
+  pts.forEach(p => {
+    if (!mkrs[p.id]) return;
+    const iss = issues(p);
+    const triggered = isTriggered(p);
+    const hasIssue = iss.some(i => i.lv === 'warn' || i.lv === 'err');
+    mkrs[p.id].setIcon(markerIcon(p.packId, hasIssue, triggered));
+
+    // Update trigger circle
+    if (circles[p.id]) { circles[p.id].remove(); delete circles[p.id]; }
+    if (triggered) {
+      circles[p.id] = L.circle([p.lat, p.lng], {
+        radius: p.triggerRadiusM || 150,
+        color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: .08, weight: 1.5,
+      }).addTo(map);
+    }
+  });
+}
+
+// ── Set simulated GPS position ──
+function setGps(lat, lng, label) {
+  gpsPos = { lat, lng };
+
+  if (gpsMarker) gpsMarker.remove();
+  gpsMarker = L.marker([lat, lng], { icon: gpsMarkerIcon(), zIndexOffset: 9000 }).addTo(map);
+  gpsMarker.bindPopup(`<div class="pop-title">模擬位置</div><div class="pop-id">${label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`}</div>`);
+
+  const bar = document.getElementById('gps-bar');
+  document.getElementById('gps-coords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  bar.style.display = 'block';
+
+  refreshMarkers();
+  renderList();
+  if (selId) select(selId); // refresh detail panel distance info
+}
+
+function clearGps() {
+  gpsPos = null;
+  if (gpsMarker) { gpsMarker.remove(); gpsMarker = null; }
+  Object.values(circles).forEach(c => c.remove());
+  circles = {};
+  document.getElementById('gps-bar').style.display = 'none';
+  document.getElementById('loc-input').value = '';
+  document.getElementById('loc-clear').style.display = 'none';
+  document.getElementById('loc-results').style.display = 'none';
+  refreshMarkers();
+  renderList();
+  if (selId) select(selId);
+}
+
+// ── Nominatim search ──
+async function nominatimSearch(q) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(q)}`;
+  const r = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh,en' } });
+  return r.json();
+}
+
+const locInput = document.getElementById('loc-input');
+const locResults = document.getElementById('loc-results');
+const locClear = document.getElementById('loc-clear');
+
+locInput.addEventListener('input', () => {
+  const v = locInput.value.trim();
+  locClear.style.display = v ? 'block' : 'none';
+  clearTimeout(searchTimer);
+  if (!v) { locResults.style.display = 'none'; return; }
+  searchTimer = setTimeout(async () => {
+    try {
+      const results = await nominatimSearch(v);
+      locResults.innerHTML = '';
+      if (!results.length) {
+        locResults.innerHTML = '<div class="loc-item" style="color:var(--muted)">找不到結果</div>';
+      } else {
+        results.forEach(r => {
+          const parts = r.display_name.split(', ');
+          const name = parts[0];
+          const sub = parts.slice(1, 4).join(', ');
+          const div = document.createElement('div');
+          div.className = 'loc-item';
+          div.innerHTML = `<div class="loc-name">${esc(name)}</div><div class="loc-sub">${esc(sub)}</div>`;
+          div.addEventListener('click', () => {
+            setGps(parseFloat(r.lat), parseFloat(r.lon), r.display_name.split(', ').slice(0,2).join(', '));
+            map.setView([parseFloat(r.lat), parseFloat(r.lon)], 16, { animate: true });
+            locInput.value = r.display_name.split(', ').slice(0, 2).join(', ');
+            locResults.style.display = 'none';
+          });
+          locResults.appendChild(div);
+        });
+      }
+      locResults.style.display = 'block';
+    } catch(e) { console.error(e); }
+  }, 400);
+});
+
+locInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { locResults.style.display = 'none'; locInput.blur(); }
+});
+
+locClear.addEventListener('click', clearGps);
+document.getElementById('gps-bar').addEventListener('click', clearGps);
+
+// Click on map to set GPS
+// (let map click pass through; use a dedicated button instead to avoid conflict with marker clicks)
+// Map right-click → set GPS
+// Actually: double-click on map sets GPS
+// Let users know via tooltip
+
+// ── Render point list ──
 function renderList() {
   const q = document.getElementById('q').value.toLowerCase();
   const el = document.getElementById('list');
@@ -239,23 +446,40 @@ function renderList() {
     return true;
   });
 
+  // Sort: triggered first when GPS active
+  if (gpsPos) {
+    shown.sort((a, b) => {
+      const ta = isTriggered(a), tb = isTriggered(b);
+      if (ta !== tb) return ta ? -1 : 1;
+      return 0;
+    });
+  }
+
   shown.forEach(p => {
     const iss = issues(p);
-    const top = iss.find(i => i.lv === 'err') || iss.find(i => i.lv === 'warn');
+    const triggered = isTriggered(p);
+    const topIssue = iss.find(i => i.lv === 'err') || iss.find(i => i.lv === 'warn');
     const div = document.createElement('div');
-    div.className = 'pi' + (p.id === selId ? ' sel' : '');
+    div.className = 'pi' + (p.id === selId ? ' sel' : '') + (triggered ? ' triggered' : '');
     div.dataset.id = p.id;
-    div.innerHTML = `<div class="pt"><span class="dot ${PACK_CLASS[p.packId]}"></span>${esc(p.title)}${top ? `<span class="ibadge ${top.lv}"></span>` : ''}</div><div class="pid">${p.id}</div>`;
+    div.innerHTML = `<div class="pt">
+      <span class="dot ${PACK_CLASS[p.packId]}"></span>${esc(p.title)}
+      ${triggered ? '<span class="ibadge gps"></span>' : ''}
+      ${!triggered && topIssue ? `<span class="ibadge ${topIssue.lv}"></span>` : ''}
+    </div><div class="pid">${p.id}</div>`;
     div.addEventListener('click', () => select(p.id));
     el.appendChild(div);
   });
 
-  const issueCount = pts.filter(p => issues(p).length > 0).length;
+  const issueCount = pts.filter(p => issues(p).filter(i=>i.lv!=='gps').length > 0).length;
+  const triggeredCount = pts.filter(p => isTriggered(p)).length;
   document.getElementById('stats').textContent =
-    `顯示 ${shown.length} / ${pts.length}` +
-    (issueCount ? ` · ⚠ ${issueCount} 待確認` : '');
+    `${shown.length} / ${pts.length}` +
+    (triggeredCount ? ` · 📍 ${triggeredCount} 觸發` : '') +
+    (issueCount ? ` · ⚠ ${issueCount}` : '');
 }
 
+// ── Select point ──
 function select(id) {
   selId = id;
   const p = pts.find(x => x.id === id);
@@ -265,7 +489,6 @@ function select(id) {
 
   if (mkrs[id]) { map.panTo(mkrs[id].getLatLng(), { animate: true }); mkrs[id].openPopup(); }
 
-  // Fill detail
   document.getElementById('d-id').textContent = id;
   document.getElementById('d-title').textContent = p.title;
   document.getElementById('d-sum').textContent = p.summary || '—';
@@ -286,15 +509,13 @@ function select(id) {
   if (p.tags && p.tags.length) {
     tagsEl.innerHTML = p.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('');
     document.getElementById('d-tags-sec').style.display = '';
-  } else {
-    document.getElementById('d-tags-sec').style.display = 'none';
-  }
+  } else { document.getElementById('d-tags-sec').style.display = 'none'; }
 
   const iss = issues(p);
   const issSec = document.getElementById('d-issues-sec');
   if (iss.length) {
     document.getElementById('d-issues').innerHTML = iss.map(i =>
-      `<div class="issue ${i.lv}"><span class="icon">${i.lv === 'err' ? '✕' : '⚠'}</span><span>${i.msg}</span></div>`
+      `<div class="issue ${i.lv}"><span class="icon">${i.lv==='err'?'✕':i.lv==='gps'?'📍':'⚠'}</span><span>${i.msg}</span></div>`
     ).join('');
     issSec.style.display = '';
   } else { issSec.style.display = 'none'; }
@@ -310,24 +531,17 @@ function fitPack() {
                  [Math.max(...lats)+.01, Math.max(...lngs)+.01]], { animate: true, padding: [20,20] });
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// Events
+// ── Events ──
 document.getElementById('close').addEventListener('click', () => {
   document.getElementById('dp').classList.remove('open');
   selId = null;
   document.querySelectorAll('.pi').forEach(el => el.classList.remove('sel'));
 });
-
 document.getElementById('copy-btn').addEventListener('click', () => {
   const p = pts.find(x => x.id === selId);
   if (p) navigator.clipboard.writeText(`${p.lat},${p.lng}`);
 });
-
 document.getElementById('q').addEventListener('input', renderList);
-
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
@@ -338,6 +552,13 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
+// Hide search results when clicking elsewhere
+document.addEventListener('click', e => {
+  if (!document.getElementById('loc-search').contains(e.target))
+    locResults.style.display = 'none';
+});
+
+// ── Init ──
 async function init() {
   map = L.map('map').setView([25, 123], 6);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -345,18 +566,27 @@ async function init() {
     maxZoom: 19,
   }).addTo(map);
 
+  // Double-click on map = set GPS (prevent zoom)
+  map.doubleClickZoom.disable();
+  map.on('dblclick', e => {
+    setGps(e.latlng.lat, e.latlng.lng);
+    locInput.value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+    locClear.style.display = 'block';
+  });
+
   try {
     const d = await fetch(DATA_URL).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
     document.getElementById('loading').style.display = 'none';
 
     d.packs.forEach(pack => {
-      pack.points.forEach(p => pts.push({ ...p, packId: pack.packId, packTitle: pack.title }));
+      pack.points.forEach(p => pts.push({ ...p, packId: pack.packId }));
     });
 
     pts.forEach(p => {
       if (p.lat == null || p.lng == null) return;
       const iss = issues(p);
-      const m = L.marker([p.lat, p.lng], { icon: markerIcon(p.packId, iss.length > 0) }).addTo(map);
+      const hasIssue = iss.some(i => i.lv==='warn'||i.lv==='err');
+      const m = L.marker([p.lat, p.lng], { icon: markerIcon(p.packId, hasIssue, false) }).addTo(map);
       m.bindPopup(`<div class="pop-title">${esc(p.title)}</div><div class="pop-id">${p.id}</div>`);
       m.on('click', () => select(p.id));
       mkrs[p.id] = m;
@@ -364,7 +594,7 @@ async function init() {
 
     renderList();
     fitPack();
-  } catch (e) {
+  } catch(e) {
     document.getElementById('loading').textContent = '❌ 載入失敗：' + e.message;
     console.error(e);
   }
