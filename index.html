@@ -6,10 +6,11 @@
 <title>NearbyGuide Dataset Viewer</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
-  --sidebar-w: 270px;
-  --detail-w: 310px;
+  --sidebar-w: 260px;
+  --detail-w: 380px;
   --hdr: 48px;
   --bg: #111827;
   --surf: #1f2937;
@@ -30,8 +31,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
        display: flex; flex-direction: column; overflow: hidden; }
 
 /* Header */
-#hdr { height: var(--hdr); background: var(--surf);
-       border-bottom: 1px solid var(--border);
+#hdr { height: var(--hdr); background: var(--surf); border-bottom: 1px solid var(--border);
        display: flex; align-items: center; padding: 0 14px; gap: 12px; flex-shrink: 0; }
 #hdr h1 { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .tabs { display: flex; gap: 3px; }
@@ -42,31 +42,31 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 .tab.on[data-p="all"]           { background: var(--surf2); color: var(--txt); }
 .tab.on[data-p="tw-hsinchu"]   { background: var(--tw); }
 .tab.on[data-p="jp-miyakojima"]{ background: var(--jp); }
+.tab.on[data-p="jp-ishigaki"]  { background: #f59e0b; }
+#img-status { font-size: 11px; color: var(--muted); white-space: nowrap; }
 #stats { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
 /* Body */
 #body { flex: 1; display: flex; overflow: hidden; }
 
 /* Sidebar */
-#sb { width: var(--sidebar-w); background: var(--surf);
-      border-right: 1px solid var(--border);
+#sb { width: var(--sidebar-w); background: var(--surf); border-right: 1px solid var(--border);
       display: flex; flex-direction: column; flex-shrink: 0; }
 #srch { padding: 8px; border-bottom: 1px solid var(--border); }
 #srch input { width: 100%; background: var(--bg); border: 1px solid var(--border);
-              border-radius: 6px; padding: 6px 10px; color: var(--txt);
-              font-size: 13px; outline: none; }
+              border-radius: 6px; padding: 6px 10px; color: var(--txt); font-size: 13px; outline: none; }
 #srch input:focus { border-color: var(--accent); }
 #list { flex: 1; overflow-y: auto; }
 .pi { padding: 8px 12px; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
 .pi:hover { background: var(--surf2); }
 .pi.sel { background: var(--surf2); border-left-color: var(--accent); }
 .pi.triggered { background: rgba(56,189,248,.08); border-left-color: var(--gps); }
-.pi.triggered.sel { background: rgba(56,189,248,.18); }
 .pi .pt { font-size: 13px; font-weight: 500; }
 .pi .pid { font-size: 10px; font-family: monospace; color: var(--muted); margin-top: 1px; }
 .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
 .dot.tw { background: var(--tw); }
 .dot.jp { background: var(--jp); }
+.dot.ishi { background: #f59e0b; }
 .ibadge { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-left: 4px; vertical-align: middle; }
 .ibadge.warn { background: var(--warn); }
 .ibadge.err  { background: var(--err); }
@@ -76,72 +76,75 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 #map-wrap { flex: 1; position: relative; }
 #map { width: 100%; height: 100%; }
 
-/* Location search overlay */
-#loc-search {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-  z-index: 1000; width: 340px; max-width: calc(100% - 20px);
-}
-#loc-input-wrap {
-  display: flex; gap: 0;
-  background: var(--surf); border: 1px solid var(--border); border-radius: 8px;
-  overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,.4);
-}
-#loc-input {
-  flex: 1; background: transparent; border: none; padding: 8px 12px;
-  color: var(--txt); font-size: 13px; outline: none;
-}
+/* Location search */
+#loc-search { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+              z-index: 1000; width: 340px; max-width: calc(100% - 20px); }
+#loc-input-wrap { display: flex; background: var(--surf); border: 1px solid var(--border);
+                  border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+#loc-input { flex: 1; background: transparent; border: none; padding: 8px 12px;
+             color: var(--txt); font-size: 13px; outline: none; }
 #loc-input::placeholder { color: var(--muted); }
-#loc-clear {
-  background: none; border: none; color: var(--muted); padding: 0 10px;
-  cursor: pointer; font-size: 16px; display: none;
-}
+#loc-clear { background: none; border: none; color: var(--muted); padding: 0 10px;
+             cursor: pointer; font-size: 16px; display: none; }
 #loc-clear:hover { color: var(--txt); }
-#loc-results {
-  margin-top: 4px; background: var(--surf); border: 1px solid var(--border);
-  border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,.4);
-  display: none;
-}
-.loc-item {
-  padding: 9px 12px; cursor: pointer; font-size: 13px;
-  border-bottom: 1px solid var(--border);
-}
+#loc-results { margin-top: 4px; background: var(--surf); border: 1px solid var(--border);
+               border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,.4); display: none; }
+.loc-item { padding: 9px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid var(--border); }
 .loc-item:last-child { border-bottom: none; }
 .loc-item:hover { background: var(--surf2); }
-.loc-item .loc-name { font-weight: 500; }
-.loc-item .loc-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.loc-name { font-weight: 500; }
+.loc-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-/* GPS status bar */
-#gps-bar {
-  position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-  z-index: 1000; background: var(--surf); border: 1px solid var(--gps);
-  border-radius: 20px; padding: 5px 14px; font-size: 12px; color: var(--gps);
-  box-shadow: 0 2px 8px rgba(0,0,0,.4); display: none; white-space: nowrap;
-  cursor: pointer;
-}
-#gps-bar:hover { background: var(--surf2); }
-
+/* GPS bar */
+#gps-bar { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+           z-index: 1000; background: var(--surf); border: 1px solid var(--gps);
+           border-radius: 20px; padding: 5px 14px; font-size: 12px; color: var(--gps);
+           box-shadow: 0 2px 8px rgba(0,0,0,.4); display: none; white-space: nowrap; cursor: pointer; }
 #loading { position: absolute; inset: 0; display: flex; align-items: center;
            justify-content: center; font-size: 14px; color: var(--muted);
-           z-index: 500; pointer-events: none; }
+           z-index: 500; pointer-events: none; background: rgba(17,24,39,.7); }
 
 /* Detail panel */
-#dp { width: var(--detail-w); background: var(--surf);
-      border-left: 1px solid var(--border);
+#dp { width: var(--detail-w); background: var(--surf); border-left: 1px solid var(--border);
       display: none; flex-direction: column; overflow: hidden; flex-shrink: 0; }
 #dp.open { display: flex; }
 #dp-hdr { padding: 10px 13px; border-bottom: 1px solid var(--border);
-          display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-#dp-hdr .did { font-size: 10px; font-family: monospace; color: var(--muted); word-break: break-all; }
+          display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
+.did { font-size: 10px; font-family: monospace; color: var(--muted); word-break: break-all; }
 #close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; flex-shrink: 0; }
 #close:hover { color: var(--txt); }
-#dc { flex: 1; overflow-y: auto; padding: 13px; }
-#d-img { width: 100%; border-radius: 8px; margin-bottom: 12px;
-         background: var(--bg); min-height: 150px; max-height: 200px;
-         object-fit: cover; display: block; }
-.dtitle { font-size: 16px; font-weight: 700; margin-bottom: 10px; line-height: 1.3; }
+#dc { flex: 1; overflow-y: auto; }
+
+/* Image area */
+#img-wrap { position: relative; background: var(--bg); width: 100%; }
+#d-img { width: 100%; height: 220px; object-fit: cover; display: block; }
+#img-placeholder { width: 100%; height: 220px; display: flex; align-items: center;
+                   justify-content: center; color: var(--muted); font-size: 13px;
+                   background: var(--bg); }
+#img-credit { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,.55);
+              font-size: 10px; color: #ccc; padding: 3px 7px; }
+
+/* Detail content */
+#dc-inner { padding: 14px; }
+.dtitle { font-size: 17px; font-weight: 700; margin-bottom: 5px; line-height: 1.3; }
+.dsummary { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 12px; font-style: italic; }
+
+/* Narration - the main content */
+.narration-block { background: rgba(99,102,241,.07); border-left: 3px solid var(--accent);
+                   border-radius: 0 6px 6px 0; padding: 12px 14px; margin-bottom: 14px; }
+.narration-label { font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+                   color: var(--accent); margin-bottom: 8px; }
+.narration-text { font-size: 13.5px; line-height: 1.75; color: var(--txt); white-space: pre-wrap; }
+
+/* Observation prompt */
+.obs-block { background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.25);
+             border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; }
+.obs-label { font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+             color: var(--warn); margin-bottom: 5px; }
+.obs-text { font-size: 13px; color: #fde68a; line-height: 1.5; }
+
 .dsec { margin-bottom: 12px; }
-.dlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
-        color: var(--muted); margin-bottom: 3px; }
+.dlbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 3px; }
 .dval { font-size: 13px; line-height: 1.55; }
 .coord-row { display: flex; align-items: center; gap: 6px; }
 .cval { font-family: monospace; font-size: 12px; flex: 1; }
@@ -161,21 +164,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 .issue.gps  { background: rgba(56,189,248,.13); border: 1px solid rgba(56,189,248,.3); color: #7dd3fc; }
 .issue .icon { flex-shrink: 0; }
 
-/* Scrollbar */
+/* Stars */
+.stars { color: #fbbf24; font-size: 14px; }
+
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* Leaflet overrides */
 .leaflet-popup-content-wrapper { background: var(--surf); color: var(--txt); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.5); }
 .leaflet-popup-tip { background: var(--surf); }
 .leaflet-popup-content { margin: 10px 14px; font-size: 13px; }
 .pop-title { font-weight: 600; }
 .pop-id { font-size: 10px; font-family: monospace; color: var(--muted); margin-top: 2px; }
-.pop-dist { font-size: 11px; color: var(--gps); margin-top: 4px; }
 .leaflet-control-zoom a { background: var(--surf) !important; color: var(--txt) !important; border-color: var(--border) !important; }
 
-/* GPS pulse animation */
 @keyframes pulse {
   0%   { transform: scale(1);   opacity: 1; }
   70%  { transform: scale(2.5); opacity: 0; }
@@ -192,7 +193,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     <div class="tab on" data-p="all">全部</div>
     <div class="tab" data-p="tw-hsinchu">新竹市</div>
     <div class="tab" data-p="jp-miyakojima">宮古島</div>
+    <div class="tab" data-p="jp-ishigaki">石垣島</div>
   </div>
+  <span id="img-status" title="從 guidepack 解壓縮圖片中">⟳ 圖片載入中…</span>
   <div id="stats">載入中…</div>
 </div>
 
@@ -203,7 +206,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   </div>
 
   <div id="map-wrap">
-    <!-- Location search overlay -->
     <div id="loc-search">
       <div id="loc-input-wrap">
         <input id="loc-input" type="text" placeholder="📍 搜尋地點以模擬 GPS 位置…">
@@ -211,10 +213,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       </div>
       <div id="loc-results"></div>
     </div>
-
-    <!-- Current GPS status -->
     <div id="gps-bar">📍 <span id="gps-coords"></span> &nbsp;·&nbsp; 點此清除</div>
-
     <div id="map"></div>
     <div id="loading">⟳ 載入中…</div>
   </div>
@@ -225,45 +224,58 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       <button id="close">✕</button>
     </div>
     <div id="dc">
-      <img id="d-img" src="" alt="" onerror="this.style.display='none'">
-      <div class="dtitle" id="d-title"></div>
-
-      <div class="dsec" id="d-sum-sec">
-        <div class="dlbl">摘要</div>
-        <div class="dval" id="d-sum"></div>
+      <div id="img-wrap">
+        <div id="img-placeholder">圖片載入中…</div>
+        <img id="d-img" src="" alt="" style="display:none" onerror="handleImgError()">
+        <div id="img-credit"></div>
       </div>
+      <div id="dc-inner">
+        <div class="dtitle" id="d-title"></div>
+        <div class="dsummary" id="d-summary"></div>
 
-      <div class="dsec">
-        <div class="dlbl">座標</div>
-        <div class="coord-row">
-          <span class="cval" id="d-coords"></span>
-          <button class="btn" id="copy-btn">複製</button>
-          <a class="btn pri" id="d-map-link" target="_blank" rel="noopener">地圖 ↗</a>
+        <div class="narration-block" id="d-narration-block" style="display:none">
+          <div class="narration-label">🎙 嚮導解說</div>
+          <div class="narration-text" id="d-narration"></div>
         </div>
-      </div>
 
-      <div class="dsec row3">
-        <div><div class="dlbl">室內/外</div><div class="dval" id="d-indoor"></div></div>
-        <div><div class="dlbl">圖片數</div><div class="dval" id="d-media"></div></div>
-        <div><div class="dlbl">評分</div><div class="dval" id="d-rating"></div></div>
-      </div>
+        <div class="obs-block" id="d-obs-block" style="display:none">
+          <div class="obs-label">👀 觀察任務</div>
+          <div class="obs-text" id="d-obs"></div>
+        </div>
 
-      <div class="dsec" id="d-tags-sec">
-        <div class="dlbl">標籤</div>
-        <div class="tags" id="d-tags"></div>
-      </div>
+        <div class="dsec">
+          <div class="dlbl">座標</div>
+          <div class="coord-row">
+            <span class="cval" id="d-coords"></span>
+            <button class="btn" id="copy-btn">複製</button>
+            <a class="btn pri" id="d-map-link" target="_blank" rel="noopener">地圖 ↗</a>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px" id="d-hint"></div>
+        </div>
 
-      <div class="dsec" id="d-issues-sec" style="display:none">
-        <div class="dlbl">⚠ 待確認</div>
-        <div id="d-issues"></div>
+        <div class="dsec row3">
+          <div><div class="dlbl">室內/外</div><div class="dval" id="d-indoor"></div></div>
+          <div><div class="dlbl">觸發半徑</div><div class="dval" id="d-radius"></div></div>
+          <div><div class="dlbl">評分</div><div class="dval" id="d-rating"></div></div>
+        </div>
+
+        <div class="dsec" id="d-tags-sec">
+          <div class="dlbl">標籤</div>
+          <div class="tags" id="d-tags"></div>
+        </div>
+
+        <div class="dsec" id="d-issues-sec" style="display:none">
+          <div class="dlbl">⚠ 待確認</div>
+          <div id="d-issues"></div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-const DATA_URL =
-  'https://raw.githubusercontent.com/whmou/nearby-guide-data/main/public/viewer_data.json';
+const DATA_URL    = 'https://raw.githubusercontent.com/whmou/nearby-guide-data/main/public/viewer_data.json';
+const CATALOG_URL = 'https://raw.githubusercontent.com/whmou/nearby-guide-data/main/catalog.json';
 
 const KNOWN = {
   'tw-hsinchu-catholic-church': [
@@ -271,18 +283,17 @@ const KNOWN = {
   ],
 };
 
-const PACK_COLOR = { 'tw-hsinchu': '#3b82f6', 'jp-miyakojima': '#10b981' };
-const PACK_CLASS = { 'tw-hsinchu': 'tw', 'jp-miyakojima': 'jp' };
+const PACK_COLOR = { 'tw-hsinchu': '#3b82f6', 'jp-miyakojima': '#10b981', 'jp-ishigaki': '#f59e0b' };
+const PACK_DOT_CLASS = { 'tw-hsinchu': 'tw', 'jp-miyakojima': 'jp', 'jp-ishigaki': 'ishi' };
 
 let pts = [], mkrs = {}, circles = {}, selId = null, packFilter = 'all', map;
-let gpsPos = null;       // { lat, lng } simulated position
-let gpsMarker = null;
-let searchTimer = null;
+let gpsPos = null, gpsMarker = null, searchTimer = null;
+let imgMap = {};          // pointId -> blob URL
 
-// ── Haversine distance (metres) ──
+// ── Haversine ──
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000, r = Math.PI / 180;
-  const dLat = (lat2 - lat1) * r, dLng = (lng2 - lng1) * r;
+  const dLat = (lat2-lat1)*r, dLng = (lng2-lng1)*r;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
@@ -294,7 +305,7 @@ function issues(pt) {
   if (gpsPos && pt.lat != null) {
     const dist = haversine(gpsPos.lat, gpsPos.lng, pt.lat, pt.lng);
     const r = pt.triggerRadiusM || 150;
-    if (dist <= r) list.push({ lv: 'gps', msg: `📍 在觸發範圍內（距離 ${Math.round(dist)} m，半徑 ${r} m）` });
+    if (dist <= r) list.push({ lv: 'gps', msg: `📍 在觸發範圍內（距 ${Math.round(dist)} m，半徑 ${r} m）` });
   }
   return list;
 }
@@ -311,7 +322,7 @@ function markerIcon(packId, hasIssue, triggered) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
     <circle cx="12" cy="12" r="8" fill="${c}" stroke="${ring}" stroke-width="${sw}" opacity=".92"/>
   </svg>`;
-  return L.divIcon({ html: svg, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
+  return L.divIcon({ html: svg, className: '', iconSize: [24,24], iconAnchor: [12,12] });
 }
 
 function gpsMarkerIcon() {
@@ -319,98 +330,149 @@ function gpsMarkerIcon() {
     <circle cx="16" cy="16" r="14" fill="rgba(56,189,248,.18)" stroke="#38bdf8" stroke-width="2" class="gps-pulse"/>
     <circle cx="16" cy="16" r="6" fill="#38bdf8" stroke="#fff" stroke-width="2.5"/>
   </svg>`;
-  return L.divIcon({ html: svg, className: '', iconSize: [32, 32], iconAnchor: [16, 16] });
+  return L.divIcon({ html: svg, className: '', iconSize: [32,32], iconAnchor: [16,16] });
 }
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function stars(score) {
+  if (!score) return '—';
+  const full = Math.round(score);
+  return '★'.repeat(full) + '☆'.repeat(5-full) + ` ${score.toFixed(1)}`;
 }
 
-// ── Refresh all marker icons after GPS change ──
+// ── Image loading ──
+async function loadImages() {
+  try {
+    const catalog = await fetch(CATALOG_URL).then(r => r.json());
+    let loaded = 0, total = 0;
+
+    await Promise.all(catalog.packs.map(async pack => {
+      const compact = pack.variants.find(v => v.variantId === 'compact');
+      if (!compact) return;
+      try {
+        const ab = await fetch(compact.downloadUrl).then(r => {
+          if (!r.ok) throw new Error(r.status);
+          return r.arrayBuffer();
+        });
+        const zip = await JSZip.loadAsync(ab);
+        for (const pt of pts.filter(p => p.packId === pack.packId)) {
+          if (!pt.compactPath) continue;
+          const file = zip.file(pt.compactPath);
+          if (!file) continue;
+          total++;
+          const blob = await file.async('blob');
+          imgMap[pt.id] = URL.createObjectURL(blob);
+          loaded++;
+        }
+      } catch(e) {
+        console.warn(`Failed to load guidepack for ${pack.packId}:`, e.message);
+      }
+    }));
+
+    document.getElementById('img-status').textContent =
+      loaded > 0 ? `✓ 圖片已載入 ${loaded} 張` : '⚠ 圖片載入失敗';
+
+    // Refresh current detail if open
+    if (selId) _fillImage(pts.find(p => p.id === selId));
+  } catch(e) {
+    document.getElementById('img-status').textContent = '⚠ 圖片載入失敗';
+    console.warn('Image loading error:', e);
+  }
+}
+
+function _fillImage(pt) {
+  const img = document.getElementById('d-img');
+  const placeholder = document.getElementById('img-placeholder');
+  const credit = document.getElementById('img-credit');
+
+  const src = imgMap[pt.id] || pt.mediaSourceUrl;
+  if (src) {
+    img.onload = () => { img.style.display = 'block'; placeholder.style.display = 'none'; };
+    img.src = src;
+  } else if (Object.keys(imgMap).length === 0) {
+    placeholder.textContent = '圖片載入中…';
+    placeholder.style.display = 'flex';
+    img.style.display = 'none';
+  } else {
+    placeholder.textContent = '無圖片';
+    placeholder.style.display = 'flex';
+    img.style.display = 'none';
+  }
+  credit.textContent = '';
+}
+
+function handleImgError() {
+  const img = document.getElementById('d-img');
+  const placeholder = document.getElementById('img-placeholder');
+  img.style.display = 'none';
+  placeholder.textContent = '圖片無法顯示';
+  placeholder.style.display = 'flex';
+}
+
+// ── GPS simulation ──
 function refreshMarkers() {
   pts.forEach(p => {
     if (!mkrs[p.id]) return;
-    const iss = issues(p);
-    const triggered = isTriggered(p);
-    const hasIssue = iss.some(i => i.lv === 'warn' || i.lv === 'err');
+    const iss = issues(p), triggered = isTriggered(p);
+    const hasIssue = iss.some(i => i.lv==='warn'||i.lv==='err');
     mkrs[p.id].setIcon(markerIcon(p.packId, hasIssue, triggered));
-
-    // Update trigger circle
     if (circles[p.id]) { circles[p.id].remove(); delete circles[p.id]; }
     if (triggered) {
       circles[p.id] = L.circle([p.lat, p.lng], {
-        radius: p.triggerRadiusM || 150,
-        color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: .08, weight: 1.5,
+        radius: p.triggerRadiusM||150, color:'#38bdf8', fillColor:'#38bdf8', fillOpacity:.08, weight:1.5
       }).addTo(map);
     }
   });
 }
 
-// ── Set simulated GPS position ──
 function setGps(lat, lng, label) {
   gpsPos = { lat, lng };
-
   if (gpsMarker) gpsMarker.remove();
-  gpsMarker = L.marker([lat, lng], { icon: gpsMarkerIcon(), zIndexOffset: 9000 }).addTo(map);
-  gpsMarker.bindPopup(`<div class="pop-title">模擬位置</div><div class="pop-id">${label || `${lat.toFixed(6)}, ${lng.toFixed(6)}`}</div>`);
-
-  const bar = document.getElementById('gps-bar');
+  gpsMarker = L.marker([lat,lng], {icon:gpsMarkerIcon(), zIndexOffset:9000}).addTo(map);
+  gpsMarker.bindPopup(`<div class="pop-title">模擬位置</div><div class="pop-id">${label||`${lat.toFixed(6)},${lng.toFixed(6)}`}</div>`);
   document.getElementById('gps-coords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  bar.style.display = 'block';
-
-  refreshMarkers();
-  renderList();
-  if (selId) select(selId); // refresh detail panel distance info
+  document.getElementById('gps-bar').style.display = 'block';
+  refreshMarkers(); renderList();
+  if (selId) select(selId);
 }
 
 function clearGps() {
   gpsPos = null;
   if (gpsMarker) { gpsMarker.remove(); gpsMarker = null; }
-  Object.values(circles).forEach(c => c.remove());
-  circles = {};
+  Object.values(circles).forEach(c => c.remove()); circles = {};
   document.getElementById('gps-bar').style.display = 'none';
   document.getElementById('loc-input').value = '';
   document.getElementById('loc-clear').style.display = 'none';
   document.getElementById('loc-results').style.display = 'none';
-  refreshMarkers();
-  renderList();
+  refreshMarkers(); renderList();
   if (selId) select(selId);
 }
 
 // ── Nominatim search ──
-async function nominatimSearch(q) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(q)}`;
-  const r = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,zh,en' } });
-  return r.json();
-}
-
 const locInput = document.getElementById('loc-input');
 const locResults = document.getElementById('loc-results');
-const locClear = document.getElementById('loc-clear');
-
 locInput.addEventListener('input', () => {
   const v = locInput.value.trim();
-  locClear.style.display = v ? 'block' : 'none';
+  document.getElementById('loc-clear').style.display = v ? 'block' : 'none';
   clearTimeout(searchTimer);
-  if (!v) { locResults.style.display = 'none'; return; }
+  if (!v) { locResults.style.display='none'; return; }
   searchTimer = setTimeout(async () => {
     try {
-      const results = await nominatimSearch(v);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=6&q=${encodeURIComponent(v)}`, {headers:{'Accept-Language':'zh-TW,zh,en'}}).then(r=>r.json());
       locResults.innerHTML = '';
-      if (!results.length) {
+      if (!res.length) {
         locResults.innerHTML = '<div class="loc-item" style="color:var(--muted)">找不到結果</div>';
       } else {
-        results.forEach(r => {
+        res.forEach(r => {
           const parts = r.display_name.split(', ');
-          const name = parts[0];
-          const sub = parts.slice(1, 4).join(', ');
           const div = document.createElement('div');
           div.className = 'loc-item';
-          div.innerHTML = `<div class="loc-name">${esc(name)}</div><div class="loc-sub">${esc(sub)}</div>`;
+          div.innerHTML = `<div class="loc-name">${esc(parts[0])}</div><div class="loc-sub">${esc(parts.slice(1,4).join(', '))}</div>`;
           div.addEventListener('click', () => {
-            setGps(parseFloat(r.lat), parseFloat(r.lon), r.display_name.split(', ').slice(0,2).join(', '));
-            map.setView([parseFloat(r.lat), parseFloat(r.lon)], 16, { animate: true });
-            locInput.value = r.display_name.split(', ').slice(0, 2).join(', ');
+            setGps(parseFloat(r.lat), parseFloat(r.lon), parts.slice(0,2).join(', '));
+            map.setView([parseFloat(r.lat), parseFloat(r.lon)], 16, {animate:true});
+            locInput.value = parts.slice(0,2).join(', ');
             locResults.style.display = 'none';
           });
           locResults.appendChild(div);
@@ -420,182 +482,142 @@ locInput.addEventListener('input', () => {
     } catch(e) { console.error(e); }
   }, 400);
 });
-
-locInput.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { locResults.style.display = 'none'; locInput.blur(); }
-});
-
-locClear.addEventListener('click', clearGps);
+locInput.addEventListener('keydown', e => { if(e.key==='Escape'){locResults.style.display='none';locInput.blur();} });
+document.getElementById('loc-clear').addEventListener('click', clearGps);
 document.getElementById('gps-bar').addEventListener('click', clearGps);
+document.addEventListener('click', e => { if(!document.getElementById('loc-search').contains(e.target)) locResults.style.display='none'; });
 
-// Click on map to set GPS
-// (let map click pass through; use a dedicated button instead to avoid conflict with marker clicks)
-// Map right-click → set GPS
-// Actually: double-click on map sets GPS
-// Let users know via tooltip
-
-// ── Render point list ──
+// ── Point list ──
 function renderList() {
   const q = document.getElementById('q').value.toLowerCase();
   const el = document.getElementById('list');
   el.innerHTML = '';
-
-  const shown = pts.filter(p => {
-    if (packFilter !== 'all' && p.packId !== packFilter) return false;
+  let shown = pts.filter(p => {
+    if (packFilter!=='all' && p.packId!==packFilter) return false;
     if (q && !p.title.toLowerCase().includes(q) && !p.id.includes(q)) return false;
     return true;
   });
-
-  // Sort: triggered first when GPS active
-  if (gpsPos) {
-    shown.sort((a, b) => {
-      const ta = isTriggered(a), tb = isTriggered(b);
-      if (ta !== tb) return ta ? -1 : 1;
-      return 0;
-    });
-  }
-
+  if (gpsPos) shown.sort((a,b) => isTriggered(a)===isTriggered(b)?0:isTriggered(a)?-1:1);
   shown.forEach(p => {
-    const iss = issues(p);
-    const triggered = isTriggered(p);
-    const topIssue = iss.find(i => i.lv === 'err') || iss.find(i => i.lv === 'warn');
+    const iss = issues(p), triggered = isTriggered(p);
+    const topIssue = iss.find(i=>i.lv==='err')||iss.find(i=>i.lv==='warn');
     const div = document.createElement('div');
-    div.className = 'pi' + (p.id === selId ? ' sel' : '') + (triggered ? ' triggered' : '');
+    div.className = 'pi'+(p.id===selId?' sel':'')+(triggered?' triggered':'');
     div.dataset.id = p.id;
-    div.innerHTML = `<div class="pt">
-      <span class="dot ${PACK_CLASS[p.packId]}"></span>${esc(p.title)}
-      ${triggered ? '<span class="ibadge gps"></span>' : ''}
-      ${!triggered && topIssue ? `<span class="ibadge ${topIssue.lv}"></span>` : ''}
-    </div><div class="pid">${p.id}</div>`;
+    div.innerHTML = `<div class="pt"><span class="dot ${PACK_DOT_CLASS[p.packId]||'jp'}"></span>${esc(p.title)}${triggered?'<span class="ibadge gps"></span>':topIssue?`<span class="ibadge ${topIssue.lv}"></span>`:''}</div><div class="pid">${p.id}</div>`;
     div.addEventListener('click', () => select(p.id));
     el.appendChild(div);
   });
-
-  const issueCount = pts.filter(p => issues(p).filter(i=>i.lv!=='gps').length > 0).length;
-  const triggeredCount = pts.filter(p => isTriggered(p)).length;
+  const issueCount = pts.filter(p=>issues(p).filter(i=>i.lv!=='gps').length>0).length;
+  const triggeredCount = pts.filter(isTriggered).length;
   document.getElementById('stats').textContent =
-    `${shown.length} / ${pts.length}` +
-    (triggeredCount ? ` · 📍 ${triggeredCount} 觸發` : '') +
-    (issueCount ? ` · ⚠ ${issueCount}` : '');
+    `${shown.length}/${pts.length}`+(triggeredCount?` · 📍${triggeredCount}觸發`:'')+(issueCount?` · ⚠${issueCount}`:'');
 }
 
-// ── Select point ──
+// ── Select / detail panel ──
 function select(id) {
   selId = id;
-  const p = pts.find(x => x.id === id);
-  if (!p) return;
-
-  document.querySelectorAll('.pi').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
-
-  if (mkrs[id]) { map.panTo(mkrs[id].getLatLng(), { animate: true }); mkrs[id].openPopup(); }
+  const p = pts.find(x=>x.id===id); if(!p) return;
+  document.querySelectorAll('.pi').forEach(el=>el.classList.toggle('sel',el.dataset.id===id));
+  if (mkrs[id]) { map.panTo(mkrs[id].getLatLng(),{animate:true}); mkrs[id].openPopup(); }
 
   document.getElementById('d-id').textContent = id;
   document.getElementById('d-title').textContent = p.title;
-  document.getElementById('d-sum').textContent = p.summary || '—';
-  document.getElementById('d-coords').textContent = `${p.lat}, ${p.lng}`;
-  document.getElementById('d-indoor').textContent = p.indoor ? '室內' : '室外';
-  document.getElementById('d-media').textContent = p.mediaCount ?? 0;
-  document.getElementById('d-rating').textContent = p.rating != null ? p.rating.toFixed(1) : '—';
+  document.getElementById('d-summary').textContent = p.summary || '';
 
-  const img = document.getElementById('d-img');
-  if (p.mediaSourceUrl) { img.src = p.mediaSourceUrl; img.style.display = 'block'; }
-  else { img.style.display = 'none'; }
+  // Narration
+  const narrBlock = document.getElementById('d-narration-block');
+  if (p.narration && p.narration.trim()) {
+    document.getElementById('d-narration').textContent = p.narration.trim();
+    narrBlock.style.display = '';
+  } else { narrBlock.style.display = 'none'; }
+
+  // Observation prompt
+  const obsBlock = document.getElementById('d-obs-block');
+  if (p.observationPrompt && p.observationPrompt.trim()) {
+    document.getElementById('d-obs').textContent = p.observationPrompt.trim();
+    obsBlock.style.display = '';
+  } else { obsBlock.style.display = 'none'; }
+
+  document.getElementById('d-coords').textContent = `${p.lat}, ${p.lng}`;
+  document.getElementById('d-hint').textContent = p.locationHint || '';
+  document.getElementById('d-indoor').textContent = p.indoor ? '室內' : '室外';
+  document.getElementById('d-radius').textContent = p.triggerRadiusM ? `${p.triggerRadiusM} m` : '—';
+  document.getElementById('d-rating').innerHTML = p.rating ? `<span class="stars">${stars(p.rating)}</span>` : '—';
 
   const link = document.getElementById('d-map-link');
-  if (p.googleMapsUrl) { link.href = p.googleMapsUrl; link.style.opacity = '1'; link.style.pointerEvents = ''; }
-  else { link.href = '#'; link.style.opacity = '.35'; link.style.pointerEvents = 'none'; }
+  if (p.googleMapsUrl) { link.href=p.googleMapsUrl; link.style.opacity='1'; link.style.pointerEvents=''; }
+  else { link.href='#'; link.style.opacity='.35'; link.style.pointerEvents='none'; }
 
-  const tagsEl = document.getElementById('d-tags');
-  if (p.tags && p.tags.length) {
-    tagsEl.innerHTML = p.tags.map(t => `<span class="chip">${esc(t)}</span>`).join('');
+  if (p.tags&&p.tags.length) {
+    document.getElementById('d-tags').innerHTML = p.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join('');
     document.getElementById('d-tags-sec').style.display = '';
-  } else { document.getElementById('d-tags-sec').style.display = 'none'; }
+  } else { document.getElementById('d-tags-sec').style.display='none'; }
 
   const iss = issues(p);
   const issSec = document.getElementById('d-issues-sec');
   if (iss.length) {
-    document.getElementById('d-issues').innerHTML = iss.map(i =>
-      `<div class="issue ${i.lv}"><span class="icon">${i.lv==='err'?'✕':i.lv==='gps'?'📍':'⚠'}</span><span>${i.msg}</span></div>`
-    ).join('');
-    issSec.style.display = '';
-  } else { issSec.style.display = 'none'; }
+    document.getElementById('d-issues').innerHTML = iss.map(i=>`<div class="issue ${i.lv}"><span class="icon">${i.lv==='err'?'✕':i.lv==='gps'?'📍':'⚠'}</span><span>${i.msg}</span></div>`).join('');
+    issSec.style.display='';
+  } else { issSec.style.display='none'; }
 
+  _fillImage(p);
   document.getElementById('dp').classList.add('open');
 }
 
 function fitPack() {
-  const vis = pts.filter(p => packFilter === 'all' || p.packId === packFilter);
-  if (!vis.length) return;
-  const lats = vis.map(p => p.lat), lngs = vis.map(p => p.lng);
-  map.fitBounds([[Math.min(...lats)-.01, Math.min(...lngs)-.01],
-                 [Math.max(...lats)+.01, Math.max(...lngs)+.01]], { animate: true, padding: [20,20] });
+  const vis = pts.filter(p=>packFilter==='all'||p.packId===packFilter);
+  if(!vis.length) return;
+  const lats=vis.map(p=>p.lat), lngs=vis.map(p=>p.lng);
+  map.fitBounds([[Math.min(...lats)-.01,Math.min(...lngs)-.01],[Math.max(...lats)+.01,Math.max(...lngs)+.01]],{animate:true,padding:[20,20]});
 }
 
 // ── Events ──
-document.getElementById('close').addEventListener('click', () => {
+document.getElementById('close').addEventListener('click', ()=>{
   document.getElementById('dp').classList.remove('open');
-  selId = null;
-  document.querySelectorAll('.pi').forEach(el => el.classList.remove('sel'));
+  selId=null; document.querySelectorAll('.pi').forEach(el=>el.classList.remove('sel'));
 });
-document.getElementById('copy-btn').addEventListener('click', () => {
-  const p = pts.find(x => x.id === selId);
-  if (p) navigator.clipboard.writeText(`${p.lat},${p.lng}`);
+document.getElementById('copy-btn').addEventListener('click', ()=>{
+  const p=pts.find(x=>x.id===selId); if(p) navigator.clipboard.writeText(`${p.lat},${p.lng}`);
 });
 document.getElementById('q').addEventListener('input', renderList);
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
-    tab.classList.add('on');
-    packFilter = tab.dataset.p;
-    renderList();
-    fitPack();
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    tab.classList.add('on'); packFilter=tab.dataset.p; renderList(); fitPack();
   });
-});
-
-// Hide search results when clicking elsewhere
-document.addEventListener('click', e => {
-  if (!document.getElementById('loc-search').contains(e.target))
-    locResults.style.display = 'none';
 });
 
 // ── Init ──
 async function init() {
-  map = L.map('map').setView([25, 123], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
-    maxZoom: 19,
+  map = L.map('map').setView([25,123],6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
   }).addTo(map);
-
-  // Double-click on map = set GPS (prevent zoom)
   map.doubleClickZoom.disable();
-  map.on('dblclick', e => {
-    setGps(e.latlng.lat, e.latlng.lng);
-    locInput.value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
-    locClear.style.display = 'block';
+  map.on('dblclick', e=>{
+    setGps(e.latlng.lat,e.latlng.lng);
+    locInput.value=`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
+    document.getElementById('loc-clear').style.display='block';
   });
 
   try {
-    const d = await fetch(DATA_URL).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
-    document.getElementById('loading').style.display = 'none';
-
-    d.packs.forEach(pack => {
-      pack.points.forEach(p => pts.push({ ...p, packId: pack.packId }));
-    });
-
-    pts.forEach(p => {
-      if (p.lat == null || p.lng == null) return;
-      const iss = issues(p);
-      const hasIssue = iss.some(i => i.lv==='warn'||i.lv==='err');
-      const m = L.marker([p.lat, p.lng], { icon: markerIcon(p.packId, hasIssue, false) }).addTo(map);
+    const d = await fetch(DATA_URL).then(r=>{ if(!r.ok)throw new Error(r.status); return r.json(); });
+    document.getElementById('loading').style.display='none';
+    d.packs.forEach(pack=>pack.points.forEach(p=>pts.push({...p,packId:pack.packId})));
+    pts.forEach(p=>{
+      if(p.lat==null||p.lng==null) return;
+      const iss=issues(p), hasIssue=iss.some(i=>i.lv==='warn'||i.lv==='err');
+      const m=L.marker([p.lat,p.lng],{icon:markerIcon(p.packId,hasIssue,false)}).addTo(map);
       m.bindPopup(`<div class="pop-title">${esc(p.title)}</div><div class="pop-id">${p.id}</div>`);
-      m.on('click', () => select(p.id));
-      mkrs[p.id] = m;
+      m.on('click',()=>select(p.id));
+      mkrs[p.id]=m;
     });
-
-    renderList();
-    fitPack();
+    renderList(); fitPack();
+    // Load images in background (don't await)
+    loadImages();
   } catch(e) {
-    document.getElementById('loading').textContent = '❌ 載入失敗：' + e.message;
+    document.getElementById('loading').textContent='❌ 載入失敗：'+e.message;
     console.error(e);
   }
 }
